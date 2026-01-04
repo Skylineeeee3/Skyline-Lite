@@ -1,407 +1,149 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Skyline Lite</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        window.firebase = { 
-            initializeApp, getAuth, signInAnonymously, signInWithCustomToken, 
-            onAuthStateChanged, getFirestore, doc, getDoc, setDoc, 
-            onSnapshot, collection, query, orderBy 
-        };
-    </script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
-        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .message-shadow { box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-        #prompt-input { field-sizing: content; min-height: 44px; max-height: 200px; }
-        .mode-btn-active { background: #3b82f6; color: white; box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
-        
-        .prose h1 { font-size: 1.5rem; font-weight: 800; margin-top: 1rem; margin-bottom: 0.5rem; color: #ffffff; }
-        .prose h2 { font-size: 1.25rem; font-weight: 800; margin-top: 0.75rem; margin-bottom: 0.4rem; color: #ffffff; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 2px; }
-        .prose h3 { font-size: 1.1rem; font-weight: 700; margin-top: 0.5rem; margin-bottom: 0.25rem; color: #ffffff; }
-        .prose strong, .prose b { font-weight: 800 !important; color: #60a5fa !important; }
-        .prose p { margin-bottom: 0.75rem; line-height: 1.6; }
-
-        .code-container {
-            background: #1e293b;
-            border-radius: 8px;
-            margin: 12px 0;
-            border: 1px solid rgba(255,255,255,0.1);
-            overflow: hidden;
-        }
-        .code-header {
-            background: rgba(255,255,255,0.05);
-            padding: 6px 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-family: monospace;
-            font-size: 11px;
-            color: #94a3b8;
-        }
-        .code-content {
-            padding: 12px;
-            overflow-x: auto;
-            font-family: 'Fira Code', 'Courier New', monospace;
-            font-size: 13px;
-            line-height: 1.5;
-            color: #e2e8f0;
-        }
-
-        .modal-backdrop { background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); }
-    </style>
+<meta charset="UTF-8">
+<title>Skyline Lite</title>
+<style>
+  body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    background: #0f1220;
+    color: #eaeaff;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  header {
+    padding: 12px;
+    background: #151a33;
+    text-align: center;
+    font-weight: bold;
+    letter-spacing: 1px;
+  }
+  #chat {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+  }
+  .msg {
+    margin-bottom: 12px;
+    max-width: 80%;
+  }
+  .user {
+    align-self: flex-end;
+    background: #4b5cff;
+    color: white;
+    padding: 10px;
+    border-radius: 12px 12px 0 12px;
+  }
+  .ai {
+    align-self: flex-start;
+    background: #1e2448;
+    padding: 10px;
+    border-radius: 12px 12px 12px 0;
+  }
+  footer {
+    display: flex;
+    padding: 12px;
+    background: #151a33;
+  }
+  input {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    outline: none;
+    font-size: 16px;
+  }
+  button {
+    margin-left: 8px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    background: #4b5cff;
+    color: white;
+    font-weight: bold;
+  }
+</style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden">
+<body>
 
-    <!-- Header -->
-    <header class="glass sticky top-0 z-50 px-6 py-4 flex items-center justify-between border-b border-white/5">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-            </div>
-            <div>
-                <h1 class="font-bold text-lg tracking-tight">Skyline Lite</h1>
-                <div id="status-badge" class="flex items-center gap-1.5 mt-0.5">
-                    <span id="status-dot" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span id="status-text" class="text-[10px] uppercase tracking-widest text-emerald-400 font-semibold">Ready</span>
-                </div>
-            </div>
-        </div>
+<header>🌆 Skyline Lite</header>
 
-        <div class="flex items-center gap-4">
-            <div class="hidden md:flex bg-slate-800/50 p-1 rounded-lg border border-white/5">
-                <button id="mode-simple" onclick="setPersona('simple')" class="px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200">Simple</button>
-                <button id="mode-thinking" onclick="setPersona('thinking')" class="px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200">Thinking</button>
-                <button id="mode-coding" onclick="setPersona('coding')" class="px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200">Coding</button>
-            </div>
-            <button onclick="toggleSettings()" class="p-2 text-slate-400 hover:text-white transition-colors bg-white/5 rounded-lg border border-white/10">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37a1.724 1.724 0 002.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-            </button>
-        </div>
-    </header>
+<div id="chat"></div>
 
-    <!-- Chat Area -->
-    <main id="chat-container" class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
-        <div id="welcome-screen" class="h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto space-y-6">
-            <div class="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center border border-white/10 mb-4 shadow-2xl">
-                <svg class="w-10 h-10 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-            </div>
-            <h2 class="text-3xl font-bold tracking-tight">Skyline Lite</h2>
-            <p class="text-slate-400 leading-relaxed">
-                Welcome back! Skyline is ready to help you with your projects.
-            </p>
-            <div class="flex gap-4">
-                <button onclick="promptInput.focus()" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20">Start Chatting</button>
-            </div>
-        </div>
-    </main>
+<footer>
+  <input id="input" placeholder="Talk to Skyline Lite..." />
+  <button onclick="send()">Send</button>
+</footer>
 
-    <!-- Input Area -->
-    <footer class="p-6 pt-0">
-        <div class="max-w-4xl mx-auto">
-            <div class="glass rounded-2xl p-2 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all duration-300">
-                <div id="image-preview-container" class="hidden px-4 py-3 border-b border-white/5 flex gap-2 overflow-x-auto"></div>
-                
-                <div class="flex items-end gap-2 px-2">
-                    <button onclick="document.getElementById('file-upload').click()" class="p-3 text-slate-400 hover:text-blue-400 transition-colors">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                    </button>
-                    <input type="file" id="file-upload" class="hidden" accept="image/*" onchange="handleFileUpload(event)">
-                    
-                    <textarea id="prompt-input" placeholder="Ask anything..." 
-                        class="flex-1 bg-transparent border-none focus:ring-0 text-slate-100 placeholder-slate-500 py-3 px-2 resize-none leading-relaxed"></textarea>
-                    
-                    <button id="send-btn" onclick="sendMessage()" class="p-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:bg-slate-700 rounded-xl transition-all duration-200">
-                        <svg id="send-icon" class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
-                        <svg id="loading-icon" class="hidden w-5 h-5 text-white animate-spin" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </footer>
+<script>
+const API_KEY = "PASTE_YOUR_OPENROUTER_KEY_HERE";
+const MODEL = "mistralai/devstral-2512:free";
 
-    <!-- Settings Modal -->
-    <div id="settings-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 modal-backdrop">
-        <div class="glass w-full max-w-md rounded-3xl p-8 space-y-6 shadow-2xl border border-white/10">
-            <div class="flex items-center justify-between">
-                <h3 class="text-xl font-bold flex items-center gap-2">
-                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                    Configuration
-                </h3>
-                <button onclick="toggleSettings()" class="text-slate-500 hover:text-white">&times;</button>
-            </div>
-            <div class="space-y-4">
-                <div class="space-y-2">
-                    <label class="text-xs uppercase tracking-widest text-slate-500 font-bold">OpenRouter API Key</label>
-                    <input type="password" id="api-key-input" placeholder="sk-or-v1-..." 
-                        class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder-slate-700">
-                </div>
-            </div>
-            <div class="flex gap-3">
-                <button onclick="saveSettings()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-blue-500/20">Save Key</button>
-                <button onclick="toggleSettings()" class="px-6 py-3 text-slate-400 hover:text-white transition-all font-medium">Cancel</button>
-            </div>
-        </div>
-    </div>
+let memory = [
+  {
+    role: "system",
+    content: "You are Skyline Lite. You are fast, lightweight, helpful, concise, and friendly. You explain things clearly without overcomplicating."
+  }
+];
 
-    <script>
-        // Key hardcoded as default
-        const DEFAULT_KEY = "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";
-        let OPENROUTER_API_KEY = localStorage.getItem('skyline_api_key') || DEFAULT_KEY;
-        
-        const MODELS = {
-            simple: [
-                "google/gemini-2.0-flash-lite-preview-02-05:free",
-                "google/gemini-2.0-flash-001:free",
-                "meta-llama/llama-3.3-70b-instruct:free"
-            ],
-            thinking: [
-                "google/gemini-2.0-flash-lite-preview-02-05:free",
-                "meta-llama/llama-3.1-405b-instruct:free"
-            ],
-            coding: [
-                "qwen/qwen-2.5-coder-32b-instruct:free",
-                "google/gemini-2.0-flash-lite-preview-02-05:free"
-            ]
-        };
+function addMessage(text, type) {
+  const chat = document.getElementById("chat");
+  const div = document.createElement("div");
+  div.className = "msg " + type;
+  div.textContent = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
 
-        const SYSTEM_PROMPTS = {
-            simple: "You are Skyline, a helpful and clean AI assistant for users under 18. Provide safe, healthy, and age-appropriate responses. Avoid harmful or unsafe topics.",
-            thinking: "You are Skyline in 'Thinking' mode. Be thorough, logical, and safe. Start with [THINKING MODE ACTIVE].",
-            coding: "You are Skyline's Coding Expert. Provide clean, efficient code that follows best practices. Stay safe."
-        };
+async function send() {
+  const input = document.getElementById("input");
+  const text = input.value.trim();
+  if (!text) return;
 
-        let currentPersona = 'simple';
-        const chatContainer = document.getElementById('chat-container');
-        const promptInput = document.getElementById('prompt-input');
-        const sendBtn = document.getElementById('send-btn');
-        const imgPreview = document.getElementById('image-preview-container');
-        let attachedImages = [];
+  input.value = "";
+  addMessage(text, "user");
+  memory.push({ role: "user", content: text });
 
-        function toggleSettings() {
-            const modal = document.getElementById('settings-modal');
-            document.getElementById('api-key-input').value = OPENROUTER_API_KEY;
-            modal.classList.toggle('hidden');
-        }
+  addMessage("Skyline Lite is thinking…", "ai");
 
-        function saveSettings() {
-            const val = document.getElementById('api-key-input').value.trim();
-            if(val) {
-                OPENROUTER_API_KEY = val;
-                localStorage.setItem('skyline_api_key', val);
-                toggleSettings();
-                updateStatusUI();
-            }
-        }
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + API_KEY,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "http://localhost",
+        "X-Title": "Skyline Lite"
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: memory
+      })
+    });
 
-        function updateStatusUI() {
-            const dot = document.getElementById('status-dot');
-            const txt = document.getElementById('status-text');
-            if(!OPENROUTER_API_KEY) {
-                dot.className = "w-2 h-2 rounded-full bg-red-500";
-                txt.innerText = "Key Missing";
-            } else {
-                setPersona(currentPersona);
-            }
-        }
+    const data = await res.json();
+    const reply = data.choices[0].message.content;
 
-        function setPersona(mode) {
-            currentPersona = mode;
-            document.querySelectorAll('[id^="mode-"]').forEach(btn => {
-                btn.className = `px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${btn.id === 'mode-'+mode ? 'mode-btn-active' : 'text-slate-400 hover:text-white'}`;
-            });
-            
-            const dot = document.getElementById('status-dot');
-            const txt = document.getElementById('status-text');
+    // Remove thinking message
+    document.querySelector(".ai:last-child").remove();
 
-            const themes = {
-                simple: { label: "Simple Mode", dot: "bg-emerald-500", text: "text-emerald-400" },
-                thinking: { label: "Thinking Mode", dot: "bg-blue-500", text: "text-blue-400" },
-                coding: { label: "Coding Mode", dot: "bg-purple-500", text: "text-purple-400" }
-            };
+    addMessage(reply, "ai");
+    memory.push({ role: "assistant", content: reply });
 
-            const theme = themes[mode];
-            txt.innerText = theme.label;
-            dot.className = `w-2 h-2 rounded-full ${theme.dot} animate-pulse`;
-            txt.className = `text-[10px] uppercase tracking-widest ${theme.text} font-semibold`;
-        }
+  } catch (err) {
+    document.querySelector(".ai:last-child").remove();
+    addMessage("Error connecting to OpenRouter.", "ai");
+    console.error(err);
+  }
+}
 
-        function formatMessageText(text) {
-            let formatted = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            const codeBlocks = [];
-            formatted = formatted.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-                const id = 'code-' + Math.random().toString(36).substr(2, 9);
-                codeBlocks.push(`
-                    <div class="code-container">
-                        <div class="code-header">
-                            <span>${lang || 'code'}</span>
-                            <button onclick="copyRawCode('${id}')" class="hover:text-white transition-colors">Copy</button>
-                        </div>
-                        <pre class="code-content"><code id="${id}">${code.trim()}</code></pre>
-                    </div>
-                `);
-                return `__CODE_TOKEN_${codeBlocks.length - 1}__`;
-            });
+document.getElementById("input").addEventListener("keydown", e => {
+  if (e.key === "Enter") send();
+});
+</script>
 
-            formatted = formatted.replace(/^### (.*$)/gim, '<h3>$1</h3>');
-            formatted = formatted.replace(/^## (.*$)/gim, '<h2>$1</h2>');
-            formatted = formatted.replace(/^# (.*$)/gim, '<h1>$1</h1>');
-            formatted = formatted.replace(/(\*\*|__)(.*?)\1/g, '<strong>$2</strong>');
-            formatted = formatted.split('\n').join('<br>');
-            codeBlocks.forEach((block, i) => { formatted = formatted.replace(`__CODE_TOKEN_${i}__`, block); });
-            return formatted;
-        }
-
-        window.copyRawCode = (id) => {
-            const code = document.getElementById(id).innerText;
-            const el = document.createElement('textarea');
-            el.value = code;
-            document.body.appendChild(el);
-            el.select();
-            document.execCommand('copy');
-            document.body.removeChild(el);
-        };
-
-        function appendMessage(role, text, images = []) {
-            document.getElementById('welcome-screen')?.classList.add('hidden');
-            const msgDiv = document.createElement('div');
-            msgDiv.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`;
-            let imgHtml = images.map(src => `<img src="${src}" class="max-w-xs rounded-lg border border-white/10 mb-2">`).join('');
-            msgDiv.innerHTML = `
-                <div class="max-w-[85%] ${role === 'user' ? 'bg-blue-600 text-white rounded-2xl rounded-tr-none' : 'glass text-slate-100 rounded-2xl rounded-tl-none'} p-4 message-shadow">
-                    ${imgHtml}
-                    <div class="prose prose-invert prose-sm overflow-hidden">${role === 'assistant' ? formatMessageText(text) : text}</div>
-                    <div class="mt-2 text-[9px] opacity-50 text-right uppercase tracking-tighter">${new Date().toLocaleTimeString()}</div>
-                </div>
-            `;
-            chatContainer.appendChild(msgDiv);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-
-        async function sendMessage() {
-            const text = promptInput.value.trim();
-            if (!text && attachedImages.length === 0) return;
-            const userImages = [...attachedImages];
-            appendMessage('user', text, userImages);
-            promptInput.value = '';
-            attachedImages = [];
-            imgPreview.innerHTML = '';
-            imgPreview.classList.add('hidden');
-            setLoading(true);
-
-            try {
-                const response = await fetchOpenRouter(text, userImages);
-                appendMessage('assistant', response);
-            } catch (err) {
-                appendMessage('assistant', `<div class="p-3 border border-red-500/50 bg-red-500/10 rounded-xl text-red-200">
-                    <strong class="block mb-1 font-bold">Error</strong>
-                    ${err.message}
-                </div>`);
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        async function fetchOpenRouter(prompt, images) {
-            const content = [{ type: "text", text: prompt }];
-            images.forEach(img => content.push({ type: "image_url", image_url: { url: img } }));
-            const messages = [
-                { role: "system", content: SYSTEM_PROMPTS[currentPersona] },
-                { role: "user", content: content }
-            ];
-
-            const personaModels = MODELS[currentPersona];
-            let lastErr = "";
-
-            for (const model of personaModels) {
-                try {
-                    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-                            "HTTP-Referer": "http://localhost",
-                            "X-Title": "Skyline Lite"
-                        },
-                        body: JSON.stringify({ model, messages, temperature: 0.6 })
-                    });
-                    
-                    const data = await res.json();
-                    if (!res.ok) {
-                        lastErr = data.error?.message || `Error ${res.status}`;
-                        continue; 
-                    }
-                    return data.choices[0].message.content;
-                } catch (e) {
-                    lastErr = e.message;
-                }
-            }
-            throw new Error(lastErr || "Failed to reach AI.");
-        }
-
-        function handleFileUpload(e) {
-            const files = Array.from(e.target.files);
-            files.forEach(file => {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    attachedImages.push(event.target.result);
-                    renderImagePreviews();
-                };
-                reader.readAsDataURL(file);
-            });
-        }
-
-        function renderImagePreviews() {
-            imgPreview.innerHTML = '';
-            imgPreview.classList.toggle('hidden', attachedImages.length === 0);
-            attachedImages.forEach((src, idx) => {
-                const div = document.createElement('div');
-                div.className = "relative flex-shrink-0 group";
-                div.innerHTML = `
-                    <img src="${src}" class="h-16 w-16 object-cover rounded-lg border border-white/20">
-                    <button onclick="removeImage(${idx})" class="absolute -top-1 -right-1 bg-red-500 rounded-full p-0.5 text-white scale-0 group-hover:scale-100 transition-transform">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
-                `;
-                imgPreview.appendChild(div);
-            });
-        }
-
-        function removeImage(i) { attachedImages.splice(i, 1); renderImagePreviews(); }
-
-        function setLoading(l) {
-            sendBtn.disabled = l;
-            document.getElementById('send-icon').classList.toggle('hidden', l);
-            document.getElementById('loading-icon').classList.toggle('hidden', !l);
-        }
-
-        window.onload = () => {
-            updateStatusUI();
-            promptInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                }
-            });
-        };
-
-        window.setPersona = setPersona;
-        window.sendMessage = sendMessage;
-        window.handleFileUpload = handleFileUpload;
-        window.removeImage = removeImage;
-        window.toggleSettings = toggleSettings;
-        window.saveSettings = saveSettings;
-    </script>
 </body>
 </html>
